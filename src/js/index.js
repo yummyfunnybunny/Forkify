@@ -18,10 +18,13 @@ console.log(`Using imported funcions! ${searchView.add(searchView.ID, 2)} and ${
 import Search from './models/Search';
 import Recipe from './models/Recipe';
 import List from './models/List';
+import Likes from './models/Likes';
 import * as searchView from './views/searchView';   // import everything from searchview.js
 import * as recipeView from './views/recipeView';   // import everything from recipeview.js
-import * as listView from './views/listView';   // import everything from recipeview.js
+import * as listView from './views/listView';   // import everything from listview.js
+import * as likesView from './views/likesView'; // import everything from likesview.js
 import { elements, renderLoader, clearLoader } from './views/base';  // import just the elements object from base.js
+//import Likes from './models/Likes';
 
 // Global state of the app
 // - search object
@@ -29,7 +32,6 @@ import { elements, renderLoader, clearLoader } from './views/base';  // import j
 // - shopping list object
 // - liked recipes
 const state = {};
-window.state = state; // makes the state instantly available from the window object
 
 // ==================================================
 // SEARCH CONTROLLER
@@ -37,7 +39,6 @@ window.state = state; // makes the state instantly available from the window obj
 const controlSearch = async () => {
   // 1: get query from view
   const query = searchView.getInput(); // TO DO
-  //console.log(query);
 
   if (query) {
     // 2: new search object and add to state
@@ -70,7 +71,7 @@ elements.searchForm.addEventListener('submit', e => {
 
 elements.searchResPages.addEventListener('click', e => {
   const btn = e.target.closest('.btn-inline');
-  console.log(btn);
+
   if (btn) {
     const goToPage = parseInt(btn.dataset.goto, 10);
     searchView.clearResults();
@@ -84,7 +85,6 @@ elements.searchResPages.addEventListener('click', e => {
 const controlRecipe = async () => {
   // get ID from the url
   const id = window.location.hash.replace('#', '');
-  console.log(id);
 
   if (id) {
     // Prepare the UI for changes
@@ -100,7 +100,6 @@ const controlRecipe = async () => {
     try {
       // Get the recipe data and parse ingredients
       await state.recipe.getRecipe();
-      console.log(state.recipe.ingredients);
       state.recipe.parseIngredients();
 
       // calculate servings and time
@@ -109,9 +108,12 @@ const controlRecipe = async () => {
 
       // Render recipe
       clearLoader();
-      recipeView.renderRecipe(state.recipe);
+      recipeView.renderRecipe(
+        state.recipe,
+        state.likes.isLiked(id)
+        );
+
     } catch (error) {
-      //alert('Error processing recipe');
       console.log(error);
     }
     
@@ -154,6 +156,57 @@ elements.shopping.addEventListener('click', e => {
   }
 });
 
+// ==================================================
+// LIKES CONTROLLER
+// ==================================================
+
+const controlLike = () => {
+  if (!state.likes) state.likes = new Likes();
+  const currentID = state.recipe.id;
+  
+  // user has not yet liked current recipe
+  if (!state.likes.isLiked(currentID)) {
+    // add like to the state
+    const newLike = state.likes.addLike(
+      currentID,
+      state.recipe.title,
+      state.recipe.author,
+      state.recipe.img
+    );
+    // toggle the like button
+    likesView.toggleLikeBtn(true);
+
+    // add like to UI list
+    likesView.renderLike(newLike);
+
+  // user has already liked recipe
+  }else {
+    // remove like from the state
+    state.likes.deleteLike(currentID);
+
+    // toggle the like button
+    likesView.toggleLikeBtn(false);
+
+    // remove like from UI list
+    likesView.deleteLike(currentID);
+  }
+  likesView.toggleLikeMenu(state.likes.getNumLikes());
+};
+
+// Restore liked recipes on page load
+window.addEventListener('load', () => {
+  state.likes = new Likes();
+
+  //Restore likes
+  state.likes.readStorage();
+
+  // toggle like menu button
+  likesView.toggleLikeMenu(state.likes.getNumLikes());
+
+  // render all of our liked recipes
+  state.likes.likes.forEach(like => likesView.renderLike(like));
+});
+
 // Hnadling recipe button clicks (EVENT DELEGATION)
 elements.recipe.addEventListener('click', e => {
   // returns true if you click on the .btn-decrease, or any child element of .btn-decrease
@@ -167,9 +220,10 @@ elements.recipe.addEventListener('click', e => {
     state.recipe.updateServings('inc');
     recipeView.updateServingsIngredients(state.recipe);
   } else if (e.target.matches('.recipe__btn--add, .recipe__btn--add *')) {
+    // add ingredienrts to shopping list
     controlList();
+  } else if (e.target.matches('.recipe__love, .recipe__love *')) {
+    // Like controller
+    controlLike();
   }
-  // console.log(state.recipe);
 });
-
-window.l = new List();
